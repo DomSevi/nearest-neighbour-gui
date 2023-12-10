@@ -1,20 +1,34 @@
 import csv
-
 from PySide6 import QtCore, QtWidgets, QtGui
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QRect, QRectF
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QFont
 from PySide6.QtWidgets import QSlider
 
+# Aplikacja do znajdowania k najblizszych sąsiadów
+# Po kliknięciu w planszę z punktami pojawi się nowy punkt i w zależności
+# od tego do których sąsiadów jest najbardziej podobny przyjmie ich kolor.
+#
+# Umożliwia wybór ilości znajdowanych najbliższych sąsiadów, od 1 do 20
+# Pozwala również na twa tryby obliczania odleglosci jak i ważenia głosów na to do kogo jest najpodobniejszy
+#
+# Aplikacja wczyta punkty z pliku input.txt w folderze z tym plikiem
+# Punkty muszą być w formacie x,y,z, gdzie z to typ/kolor/rodzina punktu
+#
+# Dominik Sobieraj
 
+
+# Zwaraca kolumne listy wielowymiarowej
 def column(matrix, i):
     return [row[i] for row in matrix]
 
 
-def truncate_float(float_number, decimal_places):
-    multiplier = 10 ** decimal_places
+# Zwraca float z k miejscami po przecinku
+def truncate_float(float_number, k):
+    multiplier = 10 ** k
     return int(float_number * multiplier) / multiplier
 
 
+# Zwraca kolor na podstawie int, 1 - 5
 def getColor(color) -> QColor:
     if color == '1':
         return QColor(255, 0, 0)
@@ -28,41 +42,40 @@ def getColor(color) -> QColor:
         return QColor(0, 255, 255)
 
 
+# Główna klasa aplikacji
 class App(QtWidgets.QWidget):
 
     def __init__(self):
         super().__init__()
 
-        # Metric type
+        # Metryka
         # False - Euklidesowa, True - Miejska
         self.metricType = False
 
-        # Classification type
-        # False - simple, True - weighting inversed squared distance
+        # Klasyfikacja
+        # False - prosta, True - ważona odwrotnością kwadratu odległości
         self.voteType = False
 
         self.neighbourCount = 5
-
         self.rows = []
-
         self.lastClick = [0, 0]
 
-        # Canvas and painter
+        # Canvas and painter - left side
         self.pixmap = QtGui.QPixmap(600, 600)
         self.pixmap.fill(QColor(255, 255, 255))
         self.pixmapLabel = QtWidgets.QLabel()
         self.pixmapLabel.setPixmap(self.pixmap)
 
-        self.pixmapLayout = QtWidgets.QVBoxLayout()
-        self.pixmapLayout.addWidget(self.pixmapLabel)
-        self.pixmapLayout.setSpacing(0)
-        self.pixmapLayout.setContentsMargins(0, 0, 0, 0)
+        self.leftLayout = QtWidgets.QVBoxLayout()
+        self.leftLayout.addWidget(self.pixmapLabel)
+        self.leftLayout.setSpacing(0)
+        self.leftLayout.setContentsMargins(0, 0, 0, 0)
 
         self.painter = QPainter(self.pixmap)
         self.painter.setRenderHints(QPainter.RenderHint.Antialiasing, True)
         self.painter.setRenderHints(QPainter.RenderHint.TextAntialiasing, True)
         self.font = QFont()
-        self.font.setPixelSize(15)
+        self.font.setPixelSize(12)
         self.painter.setFont(self.font)
 
         # UI - right side
@@ -82,26 +95,28 @@ class App(QtWidgets.QWidget):
         self.voteButton = QtWidgets.QPushButton(("Prosty", "Ważony")[self.voteType])
         self.voteButton.clicked.connect(self.update_type)
 
-        self.innerLayout = QtWidgets.QVBoxLayout()
-        self.innerLayout.setContentsMargins(10, 10, 10, 10)
-        self.innerLayout.addWidget(self.sliderLabel)
-        self.innerLayout.addWidget(self.slider)
-        self.innerLayout.addWidget(self.metricLabel)
-        self.innerLayout.addWidget(self.metricButton)
-        self.innerLayout.addWidget(self.voteLabel)
-        self.innerLayout.addWidget(self.voteButton)
+        self.rightLayout = QtWidgets.QVBoxLayout()
+        self.rightLayout.setContentsMargins(10, 10, 10, 10)
+        self.rightLayout.addWidget(self.sliderLabel)
+        self.rightLayout.addWidget(self.slider)
+        self.rightLayout.addWidget(self.metricLabel)
+        self.rightLayout.addWidget(self.metricButton)
+        self.rightLayout.addWidget(self.voteLabel)
+        self.rightLayout.addWidget(self.voteButton)
 
+        # Main layout
         self.layout = QtWidgets.QHBoxLayout(self)
         self.layout.setSpacing(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.addLayout(self.pixmapLayout)
-        self.layout.addLayout(self.innerLayout)
+        self.layout.addLayout(self.leftLayout)
+        self.layout.addLayout(self.rightLayout)
 
         # Read from a file, paint points and keep copy of the points only
         self.drawPoints()
         self.pixmapCopy = QtGui.QPixmap(600, 600)
         self.pixmapCopy = self.pixmap.copy()
 
+    # Uruchamiana po zainicjalizowaniu UI, wczytuje plik input.txt i rysuje punkty
     def drawPoints(self):
         # Read the input file and store rows in rows var
         file = open("input.txt")
@@ -111,7 +126,7 @@ class App(QtWidgets.QWidget):
             rows.append(row)
         file.close()
 
-        # Normalizacja
+        # Znalezienie najwiekszych i najmniejszych wartosci
         new_rows = []
         min_x = float(rows[0][0])
         max_x = float(rows[0][0])
@@ -131,8 +146,9 @@ class App(QtWidgets.QWidget):
             x = 2 * ((float(row[0]) - min_x)/(max_x - min_x)) - 1
             y = 2 * ((float(row[1]) - min_y)/(max_y - min_y)) - 1
             new_rows.append([x, y, row[2]])
-
         self.rows = new_rows
+
+        # Rysowanie punktów
         for point in self.rows:
             self.painter.setBrush(QBrush(getColor(point[2])))
             x = (float(point[0])*224)+300
@@ -140,15 +156,17 @@ class App(QtWidgets.QWidget):
             self.painter.drawEllipse(int(x), int(y), 8, 8)
         self.pixmapLabel.setPixmap(self.pixmap)
 
+    # Funkcja licząca odległosci od ostatniego kliknięcia, ustala również podobność do danej klasy
     def getKNN(self):
-        print(self.lastClick[0], self.lastClick[1])
         if self.lastClick[0] == 0 or self.lastClick[1] == 0 or self.lastClick[0] > 600 or self.lastClick[1] > 600:
             return
 
+        self.painter.drawPixmap(0, 0, 600, 600, self.pixmapCopy)
         x = (self.lastClick[0] - 300) / 224
         y = (self.lastClick[1] - 300) / 224
         dist = []
 
+        # Liczenie odległosci na dwa sposoby
         # Euklidesowa
         if not self.metricType:
             for row in self.rows:
@@ -168,6 +186,7 @@ class App(QtWidgets.QWidget):
                 result = xdiff + ydiff
                 dist.append([row[0], row[1], row[2], truncate_float(result, 2)])
 
+        # Znalezienie k-najblizszych sąsiadów
         kdist = []
         curr_largest = dist[0]
         for row in dist:
@@ -183,11 +202,12 @@ class App(QtWidgets.QWidget):
                     if curr_largest[3] < j[3]:
                         curr_largest = j
 
+        # Narysowanie odleglosci obok poszczególnych punktów
         self.painter.setPen(QPen(QColor(0, 0, 0), 15, Qt.PenStyle.SolidLine))
         for i in kdist:
             self.painter.drawText(i[0] * 224 + 300, i[1] * 224 + 300, str(i[3]))
 
-        # Deciding who won
+        # Przynależność do klasy
         # Simple
         colorCount = []
         index = 0
@@ -202,9 +222,6 @@ class App(QtWidgets.QWidget):
             for i in kdist:
                 colorCount[int(i[2])-1] = colorCount[int(i[2])-1] + 1/(pow(i[3], 2))
             index = colorCount.index(max(colorCount))
-
-        print(colorCount)
-        print(index)
 
         if colorCount.count(colorCount[index]) > 1:
             color = QColor(0, 0, 0)
@@ -222,33 +239,31 @@ class App(QtWidgets.QWidget):
             color = QColor(255, 0, 0)
 
         self.painter.setBrush(QBrush(color))
-        self.painter.setPen(QPen(color, 15, Qt.PenStyle.SolidLine))
-        self.painter.drawRect(self.lastClick[0] - 8, self.lastClick[1] - 8, 20, 20)
-
-    def repaintAll(self):
-        self.painter.drawPixmap(0, 0, 600, 600, self.pixmapCopy)
-        self.getKNN()
+        self.painter.setPen(QPen(color, 1, Qt.PenStyle.SolidLine))
+        rect = QRectF(self.lastClick[0]-8, self.lastClick[1] - 8, 25, 25)
+        self.painter.drawRect(rect)
         self.pixmapLabel.setPixmap(self.pixmap)
 
+    # Eventy i sloty do ui / kliknięć myszką
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
             self.lastClick = [event.x(), event.y()]
-            self.repaintAll()
+            self.getKNN()
 
     @QtCore.Slot()
     def update_slider(self, value):
         self.neighbourCount = value
         self.sliderLabel.setText("Liczba sąsiadów " + str(self.neighbourCount))
-        self.repaintAll()
+        self.getKNN()
 
     @QtCore.Slot()
     def update_metric(self):
         self.metricType = not self.metricType
         self.metricButton.setText(("Euklidesowa", "Miejska")[self.metricType])
-        self.repaintAll()
+        self.getKNN()
 
     @QtCore.Slot()
     def update_type(self):
         self.voteType = not self.voteType
         self.voteButton.setText(("Prosty", "Ważony")[self.voteType])
-        self.repaintAll()
+        self.getKNN()
