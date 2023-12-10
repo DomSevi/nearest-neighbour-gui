@@ -1,6 +1,6 @@
 import csv
 from PySide6 import QtCore, QtWidgets, QtGui
-from PySide6.QtCore import Qt, QRect, QRectF
+from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QFont
 from PySide6.QtWidgets import QSlider
 
