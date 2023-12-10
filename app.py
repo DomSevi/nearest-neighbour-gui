@@ -14,6 +14,9 @@ from PySide6.QtWidgets import QSlider
 # Aplikacja wczyta punkty z pliku input.txt w folderze z tym plikiem
 # Punkty muszą być w formacie x,y,z, gdzie z to typ/kolor/rodzina punktu
 #
+# Projekt można znaleźć na repozytorium
+# https://github.com/DomSevi/nearest-neighbour-gui
+#
 # Dominik Sobieraj
 
 
