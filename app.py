@@ -45,6 +45,8 @@ class App(QtWidgets.QWidget):
 
         self.rows = []
 
+        self.lastClick = [0, 0]
+
         # Canvas and painter
         self.pixmap = QtGui.QPixmap(600, 600)
         self.pixmap.fill(QColor(255, 255, 255))
@@ -64,7 +66,7 @@ class App(QtWidgets.QWidget):
         self.painter.setFont(self.font)
 
         # UI - right side
-        self.sliderLabel = QtWidgets.QLabel("Liczba sąsiadów")
+        self.sliderLabel = QtWidgets.QLabel("Liczba sąsiadów " + str(self.neighbourCount))
         self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.slider.setTickInterval(1)
@@ -138,9 +140,13 @@ class App(QtWidgets.QWidget):
             self.painter.drawEllipse(int(x), int(y), 8, 8)
         self.pixmapLabel.setPixmap(self.pixmap)
 
-    def getKNN(self, point: QtGui.QMouseEvent):
-        x = (point.x() - 300) / 224
-        y = (point.y() - 300) / 224
+    def getKNN(self):
+        print(self.lastClick[0], self.lastClick[1])
+        if self.lastClick[0] == 0 or self.lastClick[1] == 0 or self.lastClick[0] > 600 or self.lastClick[1] > 600:
+            return
+
+        x = (self.lastClick[0] - 300) / 224
+        y = (self.lastClick[1] - 300) / 224
         dist = []
 
         # Euklidesowa
@@ -162,7 +168,6 @@ class App(QtWidgets.QWidget):
                 result = xdiff + ydiff
                 dist.append([row[0], row[1], row[2], truncate_float(result, 2)])
 
-        print(self.neighbourCount)
         kdist = []
         curr_largest = dist[0]
         for row in dist:
@@ -179,32 +184,71 @@ class App(QtWidgets.QWidget):
                         curr_largest = j
 
         self.painter.setPen(QPen(QColor(0, 0, 0), 15, Qt.PenStyle.SolidLine))
-
         for i in kdist:
             self.painter.drawText(i[0] * 224 + 300, i[1] * 224 + 300, str(i[3]))
 
+        # Deciding who won
+        # Simple
+        colorCount = []
+        index = 0
+        if not self.voteType:
+            colorCount = [column(kdist, 2).count('1'), column(kdist, 2).count('2'), column(kdist, 2).count('3'),
+                          column(kdist, 2).count('4'), column(kdist, 2).count('5')]
+            index = colorCount.index(max(colorCount))
+
+        # Weighted
+        if self.voteType:
+            colorCount = [0, 0, 0, 0, 0]
+            for i in kdist:
+                colorCount[int(i[2])-1] = colorCount[int(i[2])-1] + 1/(pow(i[3], 2))
+            index = colorCount.index(max(colorCount))
+
+        print(colorCount)
+        print(index)
+
+        if colorCount.count(colorCount[index]) > 1:
+            color = QColor(0, 0, 0)
+        elif index == 0:
+            color = QColor(255, 0, 0)
+        elif index == 1:
+            color = QColor(0, 255, 0)
+        elif index == 2:
+            color = QColor(0, 0, 255)
+        elif index == 3:
+            color = QColor(255, 255, 0)
+        elif index == 4:
+            color = QColor(0, 255, 255)
+        else:
+            color = QColor(255, 0, 0)
+
+        self.painter.setBrush(QBrush(color))
+        self.painter.setPen(QPen(color, 15, Qt.PenStyle.SolidLine))
+        self.painter.drawRect(self.lastClick[0] - 8, self.lastClick[1] - 8, 20, 20)
+
+    def repaintAll(self):
+        self.painter.drawPixmap(0, 0, 600, 600, self.pixmapCopy)
+        self.getKNN()
+        self.pixmapLabel.setPixmap(self.pixmap)
+
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == Qt.LeftButton:
-
-            self.painter.drawPixmap(0, 0, 600, 600, self.pixmapCopy)
-            brush = QBrush(QColor(255, 0, 0))
-            self.painter.setPen(QPen(QColor(255, 0, 0), 4, Qt.PenStyle.SolidLine))
-            self.painter.setBrush(brush)
-            self.painter.drawRect(event.x() - 8, event.y() - 8, 16, 16)
-            self.getKNN(event)
-            self.pixmapLabel.setPixmap(self.pixmap)
+            self.lastClick = [event.x(), event.y()]
+            self.repaintAll()
 
     @QtCore.Slot()
     def update_slider(self, value):
         self.neighbourCount = value
-        print(self.neighbourCount)
+        self.sliderLabel.setText("Liczba sąsiadów " + str(self.neighbourCount))
+        self.repaintAll()
 
     @QtCore.Slot()
     def update_metric(self):
         self.metricType = not self.metricType
         self.metricButton.setText(("Euklidesowa", "Miejska")[self.metricType])
+        self.repaintAll()
 
     @QtCore.Slot()
     def update_type(self):
         self.voteType = not self.voteType
         self.voteButton.setText(("Prosty", "Ważony")[self.voteType])
+        self.repaintAll()
