@@ -1,10 +1,9 @@
-import sys
-import random
-import csv
+
 from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QSlider
+from image import Image
 
 
 class App(QtWidgets.QWidget):
@@ -39,6 +38,7 @@ class App(QtWidgets.QWidget):
         self.voteButton.clicked.connect(self.update_type)
 
         self.innerLayout = QtWidgets.QVBoxLayout()
+        self.innerLayout.setContentsMargins(10, 10, 10, 10)
         self.innerLayout.addWidget(self.sliderLabel)
         self.innerLayout.addWidget(self.slider)
         self.innerLayout.addWidget(self.metricLabel)
@@ -47,20 +47,10 @@ class App(QtWidgets.QWidget):
         self.innerLayout.addWidget(self.voteButton)
 
         self.layout = QtWidgets.QHBoxLayout(self)
-        self.pixmap = QtGui.QPixmap(600, 600)
-        self.pixmap.fill(QColor(0, 0, 0))
-        self.pixmapLabel = QtWidgets.QLabel()
-        self.pixmapLabel.setPixmap(self.pixmap)
-        self.layout.addWidget(self.pixmapLabel)
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.addWidget(Image())
         self.layout.addLayout(self.innerLayout)
-
-        # Read the input file and store rows in rows var
-        file = open("input.txt")
-        csvreader = csv.reader(file)
-        rows = []
-        for row in csvreader:
-            rows.append(row)
-        file.close()
 
     @QtCore.Slot()
     def update_slider(self, value):
@@ -76,6 +66,4 @@ class App(QtWidgets.QWidget):
         self.voteType = not self.voteType
         self.voteButton.setText(("Prosty", "Ważony")[self.voteType])
 
-    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        if event.button() == Qt.LeftButton:
-            print(event.pos())
+
